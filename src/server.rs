@@ -21,22 +21,6 @@ fn fsm(mut streams: Vec<TcpStream>) {
         if stop {
             break;
         }
-        // state = new_state;
-        // match state {
-        //     State::Error(msg) => {
-        //         println!("ERROR: {}", msg);
-        //         for mut stream in streams {
-        //             stream.write_fmt(format_args!("! {}\r\n", msg))
-        //                 .expect("write error");
-        //         }
-        //         break;
-        //     }
-        //     State::End => {
-        //         println!("Game has ended.");
-        //         break;
-        //     }
-        //     _ => (),
-        // }
     }
 }
 

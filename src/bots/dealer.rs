@@ -8,9 +8,13 @@
 /// `! #{M}` - where M is message
 /// `P #{N} {C..}` - N played C..
 /// `T #{N} [S|F|A]` - N's turn: S to start, F to follow, A to any
+/// `W #{N}` - where N emptied their hand
+/// `E #{N..}` - where N is a list of winners (from 1st to 3rd)
 ///
 /// # Client to Server
 /// `P {C..}` - play C..
+
+use std::rc::Rc;
 
 use game::{self, PlayerNum, Game};
 
@@ -18,7 +22,7 @@ enum State {
     Start,
     Wait(PlayerNum),
     Deal,
-    Play(Box<Game>),
+    Play(Rc<Game>),
     Error,
     End,
 }
@@ -41,9 +45,13 @@ impl State {
 
 enum Output {
     You(PlayerNum),
-    Deal(PlayerNum, Vec<game::Card>),
+    Deal(PlayerNum, game::Cards),
     Turn(game::Turn),
+    Play(PlayerNum, game::Cards),
+    Win(PlayerNum),
+    End(Vec<PlayerNum>),
     Error(String),
+    PlayError(PlayerNum),
 }
 
 impl Output {
@@ -56,17 +64,29 @@ impl Output {
                 Self::out_to_all(format!("! #{}", msg))
             }
             Output::Deal(p, ref cards) => {
-                let str_cards: Vec<_> = cards.iter()
-                    .map(|c| c.to_string())
-                    .collect();
-                vec![(p, format!("D {}", str_cards.join(" ")))]
+                vec![(p, format!("D {}", cards))]
             }
             Output::Turn(ref t) => {
                 Self::out_to_all(format!("T #{} {}", t.player(), match *t {
                     game::Turn::Start(_) => 'S',
                     game::Turn::Follow(_) => 'F',
                     game::Turn::Any(_) => 'A',
+                    game::Turn::End => unreachable!(),
                 }))
+            }
+            Output::Play(p, ref cards) => {
+                Self::out_to_all(format!("P #{} {}", p, cards))
+            }
+            Output::PlayError(p) => {
+                Self::out_to_all(format!("! #{} didn't play properly.", p))
+            }
+            Output::Win(p) => {
+                Self::out_to_all(format!("W #{}", p))
+            }
+            Output::End(ref winners) => {
+                let winners: Vec<_> = winners.iter().map(|w| format!("#{}", w))
+                    .collect();
+                Self::out_to_all(format!("E {}", winners.join(" ")))
             }
         }
     }
@@ -92,8 +112,7 @@ impl DealerBot {
 
     pub fn actuate(&mut self, inp: &str)
                    -> (Vec<(PlayerNum, String)>, Option<PlayerNum>, bool) {
-        let (new_state, outputs) = self.transition(&self.state, inp);
-        self.state = new_state;
+        let outputs = self.transition(inp);
         let mut stream_outputs = vec![];
         for output in outputs {
             stream_outputs.extend(output.stream_outputs());
@@ -101,8 +120,8 @@ impl DealerBot {
         (stream_outputs, self.state.player_input(), self.state.has_ended())
     }
 
-    fn transition(&self, s: &State, inp: &str) -> (State, Vec<Output>) {
-        match *s {
+    fn transition(&mut self, inp: &str) -> Vec<Output> {
+        let (new_state, outputs) = match self.state {
             State::Start => {
                 (State::Wait(1), vec![Output::You(1)])
             }
@@ -117,7 +136,7 @@ impl DealerBot {
                 }
             }
             State::Deal => {
-                let game = Box::new(Game::new());
+                let game = Rc::new(Game::new());
                 let mut outputs = vec![];
                 for p in 1..5 {
                      outputs.push(Output::Deal(p, game.hand(p)));
@@ -127,10 +146,54 @@ impl DealerBot {
                 outputs.push(Output::Turn(turn));
                 (State::Play(game), outputs)
             }
-            State::Play(ref game) => {
-                unimplemented!()
+            State::Play(ref mut game) => {
+                let tokens: Vec<_> = inp.trim().splitn(2, ' ').collect();
+                let player = game.turn().player();
+                if tokens.len() == 0 || tokens[0] != "P" {
+                    println!("Invalid input for #{}.", player);
+                    (State::Play(game.clone()), vec![Output::PlayError(player)])
+                } else {
+                    let token = if tokens.len() == 1 { "" } else { tokens[1] };
+                    match token.parse() {
+                        Ok(cards) => {
+                            match Rc::get_mut(game).unwrap().play(&cards) {
+                                Ok(wins) => {
+                                    let mut outputs = vec![];
+                                    outputs.push(Output::Play(player, cards));
+                                    if wins {
+                                        outputs.push(Output::Win(player));
+                                    }
+                                    let turn = game.turn();
+                                    match turn {
+                                        game::Turn::End => {
+                                            outputs.push(
+                                                Output::End(game.winners()));
+                                            (State::End, outputs)
+                                        }
+                                        _ => {
+                                            outputs.push(Output::Turn(turn));
+                                            (State::Play(game.clone()), outputs)
+                                        }
+                                    }
+                                }
+                                Err(e) => {
+                                    println!("Bad play of #{}: {}", player, e);
+                                    (State::Play(game.clone()),
+                                     vec![Output::PlayError(player)])
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            println!("Cannot parse input of #{}: {}.", player, e);
+                            (State::Play(game.clone()),
+                             vec![Output::PlayError(player)])
+                        }
+                    }
+                }
             }
             _ => unreachable!()
-        }
+        };
+        self.state = new_state;
+        outputs
     }
 }
