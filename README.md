@@ -1,3 +1,3 @@
 # Baraha
 
-Toy project for learning Rust.
+Card game engine.
