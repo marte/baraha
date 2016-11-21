@@ -24,12 +24,14 @@ type Value = usize;
 
 const LOWEST_CARD: Card = Card{rank: '3', suit: 'C'};
 
-const STRAIGHT_FLUSH: Value = 5;
-const QUADRO: Value = 4;
-const FULL_HOUSE: Value = 3;
-const FLUSH: Value = 2;
-const STRAIGHT: Value = 1;
-const NO_COMBI: Value = 0;
+enum Combi {
+    None,
+    Straight,
+    Flush,
+    FullHouse,
+    Quadro,
+    StraightFlush,
+}
 
 impl Card {
     fn value(&self) -> Value {
@@ -193,25 +195,24 @@ impl Cards {
             5 => {
                 let (combi, val) = if let Some(s_val) = straight(cards) {
                     if let Some(f_val) = flush(cards) {
-                        (STRAIGHT_FLUSH, s_val*4 + f_val)
+                        (Combi::StraightFlush, s_val*4 + f_val)
                     } else {
-                        (STRAIGHT, s_val)
+                        (Combi::Straight, s_val)
                     }
                 } else {
                     if let Some(val) = quadro(cards) {
-                        (QUADRO, val)
+                        (Combi::Quadro, val)
                     } else if let Some(val) = full_house(cards) {
-                        (FULL_HOUSE, val)
+                        (Combi::FullHouse, val)
                     } else if let Some(val) = flush(cards) {
-                        (FLUSH, val)
+                        (Combi::Flush, val)
                     } else {
-                        (NO_COMBI, 0)
+                        (Combi::None, 0)
                     }
                 };
-                if combi == NO_COMBI {
-                    Err("invalid 5-card combination")
-                } else {
-                    Ok(combi*1000 + val)
+                match combi {
+                    Combi::None => Err("invalid 5-card combination"),
+                    _ => Ok((combi as Value)*1000 + val)
                 }
             }
             _ => {
