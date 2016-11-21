@@ -1,18 +1,19 @@
 /// # Protocol
 ///
-/// # Server to Client
-/// `U #{N}` - where N is your player number
-/// `D {C..}` - where C.. is a list of space-separated cards
+/// ## Server to Client
+/// `U #{N}` - You: where N is your player number
+/// `D [{C} ..]` - Deal: where C.. is a list of space-separated cards
 ///
-/// # Server to All
-/// `! #{M}` - where M is message
-/// `P #{N} {C..}` - N played C..
-/// `T #{N} [S|F|A]` - N's turn: S to start, F to follow, A to any
-/// `W #{N}` - where N emptied their hand
-/// `E #{N..}` - where N is a list of winners (from 1st to 3rd)
+/// ## Server to All
+/// `! {M}` - Error: where M is message
+/// `P #{N} [{C} ..]` - Play: N played C..
+/// `T #{N} [S|F|A]` - Turn: N's turn -- S to start, F to follow, A to any
+/// `W #{N}` - Win: where N emptied their hand
+/// `E [#{N} ..]` - End: where N.. is a list of winners (from 1st to 3rd)
 ///
-/// # Client to Server
-/// `P {C..}` - play C..
+/// ## Client to Server
+/// `G` - Game: ready for game
+/// `P [{C} ..]` - Play: play C..
 
 use std::rc::Rc;
 
