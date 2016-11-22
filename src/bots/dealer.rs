@@ -1,20 +1,3 @@
-/// # Protocol
-///
-/// ## Server to Client
-/// `U #{N}` - You: where N is your player number
-/// `D [{C} ..]` - Deal: where C.. is a list of space-separated cards
-///
-/// ## Server to All
-/// `! {M}` - Error: where M is message
-/// `P #{N} [{C} ..]` - Play: N played C..
-/// `T #{N} [S|F|A]` - Turn: N's turn -- S to start, F to follow, A to any
-/// `W #{N}` - Win: where N emptied their hand
-/// `E [#{N} ..]` - End: where N.. is a list of winners (from 1st to 3rd)
-///
-/// ## Client to Server
-/// `G` - Game: ready for game
-/// `P [{C} ..]` - Play: play C..
-
 use std::rc::Rc;
 
 use game::{self, PlayerNum, Game};
@@ -44,7 +27,7 @@ impl State {
     }
 }
 
-enum Output {
+pub enum Output {
     You(PlayerNum),
     Deal(PlayerNum, game::Cards),
     Turn(game::Turn),
@@ -55,70 +38,21 @@ enum Output {
     PlayError(PlayerNum),
 }
 
-impl Output {
-    fn stream_outputs(&self) -> Vec<(PlayerNum, String)> {
-        match *self {
-            Output::You(p) => {
-                vec![(p, format!("U #{}", p))]
-            }
-            Output::Error(ref msg) => {
-                Self::out_to_all(format!("! #{}", msg))
-            }
-            Output::Deal(p, ref cards) => {
-                vec![(p, format!("D {}", cards))]
-            }
-            Output::Turn(ref t) => {
-                Self::out_to_all(format!("T #{} {}", t.player(), match *t {
-                    game::Turn::Start(_) => 'S',
-                    game::Turn::Follow(_) => 'F',
-                    game::Turn::Any(_) => 'A',
-                    game::Turn::End => unreachable!(),
-                }))
-            }
-            Output::Play(p, ref cards) => {
-                Self::out_to_all(format!("P #{} {}", p, cards))
-            }
-            Output::PlayError(p) => {
-                Self::out_to_all(format!("! #{} didn't play properly.", p))
-            }
-            Output::Win(p) => {
-                Self::out_to_all(format!("W #{}", p))
-            }
-            Output::End(ref winners) => {
-                let winners: Vec<_> = winners.iter().map(|w| format!("#{}", w))
-                    .collect();
-                Self::out_to_all(format!("E {}", winners.join(" ")))
-            }
-        }
-    }
 
-    fn out_to_all(s: String) -> Vec<(PlayerNum, String)> {
-        let mut res = vec![];
-        for p in 1..5 {
-            res.push((p, s.clone()));
-        }
-        res
-    }
-}
-
-pub struct DealerBot {
+pub struct Dealer {
     state: State,
 }
 
-impl DealerBot {
+pub fn new() -> Dealer {
+    Dealer{state: State::Start}
+}
 
-    pub fn new() -> DealerBot {
-        DealerBot{state: State::Start}
-    }
+impl Dealer {
 
     pub fn actuate(&mut self, inp: &str)
-                   -> (Vec<(PlayerNum, String)>, Option<PlayerNum>, bool) {
+                   -> (Vec<Output>, Option<PlayerNum>, bool) {
         let outputs = self.transition(inp);
-        let mut stream_outputs = vec![];
-        for output in outputs {
-            stream_outputs.extend(output.stream_outputs());
-        }
-        (stream_outputs, self.state.player_input(), self.state.has_ended())
+        (outputs, self.state.player_input(), self.state.has_ended())
     }
 
     fn transition(&mut self, inp: &str) -> Vec<Output> {
