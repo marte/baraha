@@ -91,6 +91,7 @@ fn new_deck() -> Vec<Card> {
     d
 }
 
+#[derive(Debug)]
 #[derive(Clone)]
 pub struct Cards(Vec<Card>);
 
@@ -221,7 +222,7 @@ impl Cards {
         }
     }
 
-    fn is_pass(&self) -> bool {
+    pub fn is_pass(&self) -> bool {
         self.0.is_empty()
     }
 }
@@ -230,6 +231,7 @@ pub type PlayerNum = usize;
 
 type Hand = HashSet<Card>;
 
+#[derive(Debug)]
 pub enum Turn {
     Start(PlayerNum),
     Follow(PlayerNum),
