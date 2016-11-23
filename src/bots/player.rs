@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use game;
 
 enum State {
@@ -56,7 +58,9 @@ pub struct Player {
     state: State,
     num: game::PlayerNum,
     hand: game::Cards,
+    turn: Option<game::Turn>,
     last_play: Option<(game::PlayerNum, game::Cards)>,
+    played: Option<game::Cards>,
 }
 
 pub fn new() -> Player {
@@ -64,7 +68,9 @@ pub fn new() -> Player {
         state: State::Start,
         num: 0,
         hand: "".parse().unwrap(),
+        turn: None,
         last_play: None,
+        played: None,
     }
 }
 
@@ -105,7 +111,8 @@ impl Player {
                         (State::Game, None)
                     }
                     ServerInput::Turn(turn) => {
-                        match turn {
+                        self.turn = Some(turn);
+                        match self.turn.unwrap() {
                             game::Turn::Start(p)
                                 | game::Turn::Follow(p)
                                 | game::Turn::Any(p)
@@ -123,14 +130,26 @@ impl Player {
             State::MyTurn => {
                 let input = u_inp.unwrap();
                 match input {
-                    UserInput::Play(cards) => (State::MyPlay,
-                                               Some(ServerOutput::Play(cards)))
+                    UserInput::Play(cards) => {
+                        self.played = Some(cards.clone());
+                        (State::MyPlay,
+                         Some(ServerOutput::Play(cards)))
+                    }
                 }
             }
             State::MyPlay => {
                 let input = s_inp.unwrap();
                 match input {
-                    ServerInput::Play(_, _) => (State::Game, None),
+                    ServerInput::Play(p, cards) => {
+                        self.last_play = Some((p, cards));
+                        let mut curr_cards: HashSet<_> =
+                            self.hand.into_iter().collect();
+                        for card in &self.played.take().unwrap() {
+                            curr_cards.remove(&card);
+                        }
+                        self.hand = curr_cards.into_iter().collect();
+                        (State::Game, None)
+                    }
                     ServerInput::InvalidInput(_) => (State::MyTurn, None),
                     _ => panic!("unexpected input: {:?}", input)
                 }
@@ -147,5 +166,61 @@ impl Player {
 
     pub fn hand(&self) -> &game::Cards {
         &self.hand
+    }
+
+    pub fn hints(&self) -> Vec<game::Cards> {
+        let mut compare = None;
+        let mut start = false;
+        match self.turn.unwrap() {
+            game::Turn::Start(p) => {
+                if p == self.num {
+                    start = true;
+                } else {
+                    return vec![];
+                }
+            }
+            game::Turn::Follow(_) => {
+                compare = Some(&self.last_play.as_ref().unwrap().1);
+            }
+            game::Turn::Any(p) => {
+                if p != self.num {
+                    return vec![];
+                }
+            }
+            game::Turn::End => unreachable!(),
+        }
+        let mut compare_value = None;
+        if let Some(ref cards) = compare {
+            compare_value = Some(cards.value().unwrap());
+        }
+        let mut hints = vec![];
+        for mask in 1u32..(1<<self.hand.len()) {
+            if let Some(ref cards) = compare {
+                if mask.count_ones() != (cards.len() as u32) {
+                    continue
+                }
+            }
+            let mut cards = vec![];
+            for i in 0..self.hand.len() {
+                if mask&(1<<i) == 0 {
+                    continue
+                }
+                cards.push(self.hand[i]);
+            }
+            if start && !cards.contains(&game::LOWEST_CARD) {
+                continue
+            }
+            let card: game::Cards = cards.into_iter().collect();
+            if let Ok(val) = card.value() {
+                if let Some(val2) = compare_value {
+                    if val > val2 {
+                        hints.push(card);
+                    }
+                } else {
+                    hints.push(card);
+                }
+            }
+        }
+        hints
     }
 }

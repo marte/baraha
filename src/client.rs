@@ -62,10 +62,12 @@ impl Channel {
 
 fn interact(player: Arc<Mutex<player::Player>>, mut channel: Channel) {
     let stdin = io::stdin();
+    let mut hints: Vec<game::Cards> = vec![];
     for line in stdin.lock().lines() {
         let line = line.unwrap();
         let tokens: Vec<_> = line.trim().splitn(2, ' ').collect();
         match tokens[0] {
+            "" => (),
             "play" => {
                 if !channel.can_play() {
                     println!("It's not yet your turn.");
@@ -74,12 +76,20 @@ fn interact(player: Arc<Mutex<player::Player>>, mut channel: Channel) {
                 if tokens.len() != 2 {
                     println!("What do you want to play?");
                 }
-                match tokens[1].trim().parse() {
-                    Ok(cards) => {
-                        channel.play_cards(cards);
+                if let Ok(n) = tokens[1].trim().parse::<usize>() {
+                    if 1 <= n && n <= hints.len() {
+                        channel.play_cards(hints[n-1].clone());
+                    } else {
+                        println!("Invalid hint index.");
                     }
-                    Err(e) => {
-                        println!("Invalid cards: {}", e);
+                } else {
+                    match tokens[1].trim().parse() {
+                        Ok(cards) => {
+                            channel.play_cards(cards);
+                        }
+                        Err(e) => {
+                            println!("Invalid cards: {}", e);
+                        }
                     }
                 }
             }
@@ -103,9 +113,27 @@ fn interact(player: Arc<Mutex<player::Player>>, mut channel: Channel) {
             }
             "hand" => {
                 let player = player.lock().unwrap();
-                print!("You have ");
-                pp_cards(player.hand());
-                println!("");
+                let hand = player.hand();
+                if hand.is_pass() {
+                    println!("You are done!");
+                } else {
+                    print!("You have ");
+                    pp_cards(hand);
+                    println!("");
+                }
+            }
+            "hint" => {
+                hints = player.lock().unwrap().hints();
+                if hints.is_empty() {
+                    println!("You can't play anything.");
+                } else {
+                    println!("Hints:");
+                    for (i, cards) in hints.iter().enumerate() {
+                        print!("{:>3}: ", i+1);
+                        pp_cards(cards);
+                        println!("");
+                    }
+                }
             }
             "help" => {
                 print_usage();
@@ -125,7 +153,9 @@ fn print_usage() {
 {bold}play [C ..]{reset} - play list of cards C..
 {bold}pass{reset} - pass
 {bold}last{reset} - show last played
-{bold}hand{reset} - show cards in your hand",
+{bold}hand{reset} - show cards in your hand
+{bold}hint{reset} - give hints on what can be played
+{bold}play [N]{reset} - where N is the number of the hint",
              bold = style::Bold,
              reset = style::Reset,
     );
@@ -258,9 +288,9 @@ fn print_server_input(inp: &ServerInput) {
             pp_cards(cards);
             println!("");
         }
-        ServerInput::Turn(ref turn) => {
+        ServerInput::Turn(turn) => {
             print!("Player #{}'s turn ", turn.player());
-            match *turn {
+            match turn {
                 game::Turn::Start(_) => print!("to start"),
                 game::Turn::Follow(_) => print!("to follow"),
                 game::Turn::Any(_) => print!("for control"),

@@ -3,6 +3,7 @@ use std::cmp::Ordering;
 use std::collections::{HashSet, BTreeSet};
 use std::str::FromStr;
 use std::iter::FromIterator;
+use std::ops::Index;
 
 use rand::{self, Rng};
 
@@ -22,7 +23,7 @@ pub struct Card {
 
 type Value = usize;
 
-const LOWEST_CARD: Card = Card{rank: '3', suit: 'C'};
+pub const LOWEST_CARD: Card = Card{rank: '3', suit: 'C'};
 
 enum Combi {
     None,
@@ -128,8 +129,18 @@ impl<'a> IntoIterator for &'a Cards {
     }
 }
 
+impl FromIterator<Card> for Cards {
+    fn from_iter<I: IntoIterator<Item=Card>>(iter: I) -> Self {
+        let mut cards = vec![];
+        for c in iter {
+            cards.push(c);
+        }
+        Cards(cards)
+    }
+}
+
 impl Cards {
-    fn value(&self) -> Result<Value, &'static str> {
+    pub fn value(&self) -> Result<Value, &'static str> {
         fn is_same_rank(cards: &[Card]) -> bool {
             cards[0].rank == cards[cards.len()-1].rank
         }
@@ -238,6 +249,17 @@ impl Cards {
     pub fn sort(&mut self) {
         self.0.sort();
     }
+
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+}
+
+impl Index<usize> for Cards {
+    type Output = Card;
+    fn index(&self, index: usize) -> &Card {
+        self.0.index(index)
+    }
 }
 
 pub type PlayerNum = usize;
@@ -245,6 +267,8 @@ pub type PlayerNum = usize;
 type Hand = HashSet<Card>;
 
 #[derive(Debug)]
+#[derive(Copy)]
+#[derive(Clone)]
 pub enum Turn {
     Start(PlayerNum),
     Follow(PlayerNum),
