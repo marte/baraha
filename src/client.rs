@@ -13,10 +13,11 @@ pub fn play() {
     let player = Arc::new(Mutex::new(player::new()));
     let channel = Channel::new();
     {
+        let player = player.clone();
         let channel = channel.clone();
         thread::spawn(move || run(player, channel));
     }
-    interact(channel);
+    interact(player, channel);
 }
 
 struct ChannelInfo {
@@ -59,22 +60,75 @@ impl Channel {
     }
 }
 
-fn interact(mut channel: Channel) {
+fn interact(player: Arc<Mutex<player::Player>>, mut channel: Channel) {
     let stdin = io::stdin();
     for line in stdin.lock().lines() {
-        if !channel.can_play() {
-            println!("It's not yet your turn.");
-            continue;
-        }
-        match line.unwrap().trim().parse() {
-            Ok(cards) => {
-                channel.play_cards(cards);
+        let line = line.unwrap();
+        let tokens: Vec<_> = line.trim().splitn(2, ' ').collect();
+        match tokens[0] {
+            "play" => {
+                if !channel.can_play() {
+                    println!("It's not yet your turn.");
+                    continue;
+                }
+                if tokens.len() != 2 {
+                    println!("What do you want to play?");
+                }
+                match tokens[1].trim().parse() {
+                    Ok(cards) => {
+                        channel.play_cards(cards);
+                    }
+                    Err(e) => {
+                        println!("Invalid cards: {}", e);
+                    }
+                }
             }
-            Err(e) => {
-                println!("Invalid cards: {}", e);
+            "pass" => {
+                if !channel.can_play() {
+                    println!("It's not yet your turn.");
+                    continue;
+                }
+                channel.play_cards("".parse().unwrap());
             }
+            "last" => {
+                let player = player.lock().unwrap();
+                let last_play = player.last_play();
+                if let Some((p, ref cards)) = *last_play {
+                    print!("Player #{} played ", p);
+                    pp_cards(cards);
+                    println!("");
+                } else {
+                    println!("No one has played yet.");
+                }
+            }
+            "hand" => {
+                let player = player.lock().unwrap();
+                print!("You have ");
+                pp_cards(player.hand());
+                println!("");
+            }
+            "help" => {
+                print_usage();
+            }
+            _ => {
+                println!("Invalid input.");
+                print_usage();
+            }
+
         }
     }
+}
+
+fn print_usage() {
+    println!("Usage:
+{bold}help{reset} - print this
+{bold}play [C ..]{reset} - play list of cards C..
+{bold}pass{reset} - pass
+{bold}last{reset} - show last played
+{bold}hand{reset} - show cards in your hand",
+             bold = style::Bold,
+             reset = style::Reset,
+    );
 }
 
 fn run(player: Arc<Mutex<player::Player>>, mut channel: Channel) {
@@ -192,7 +246,7 @@ impl ToString for ServerOutput {
     }
 }
 
-use termion::{self, color, style};
+use termion::{color, style};
 
 fn print_server_input(inp: &ServerInput) {
     match *inp {
