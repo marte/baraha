@@ -221,6 +221,8 @@ impl Player {
                 }
             }
         }
+        hints.sort_by_key(|h| h.len());
+        hints.reverse();
         hints
     }
 }
