@@ -14,6 +14,7 @@
 //! ## Client to Server
 //! * `G` - Game: ready for game
 //! * `P [{C} ..]` - Play: play C..
+//! * `? {M}` - Invalid input: where M is message
 
 use std::io::prelude::*;
 use std::net::{TcpListener, TcpStream};
@@ -85,8 +86,10 @@ fn stream_outputs(out: Output) -> Vec<(game::PlayerNum, String)> {
         Output::Play(p, ref cards) => {
             out_to_all(format!("P #{} {}", p, cards))
         }
-        Output::PlayError(p) => {
-            out_to_all(format!("! #{} didn't play properly.", p))
+        Output::PlayError(p, e) => {
+            let mut outs = out_to_all(format!("! #{} didn't play properly.", p));
+            outs.push((p, format!("? {}", e)));
+            outs
         }
         Output::Win(p) => {
             out_to_all(format!("W #{}", p))

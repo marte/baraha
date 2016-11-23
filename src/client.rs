@@ -86,12 +86,12 @@ fn run(player: Arc<Mutex<player::Player>>, mut channel: Channel) {
             match s {
                 Status::ServerInput => {
                     let inp = utils::read_line(&stream);
-                    let inp = inp.trim();
-                    // echo server input
-                    println!("{}", inp);
-                    s_inp = Some(inp.parse().expect("invalid server response"));
+                    let inp = inp.trim().parse().expect("invalid server response");
+                    print_server_input(&inp);
+                    s_inp = Some(inp);
                 }
                 Status::UserInput => {
+                    print_your_turn();
                     u_inp = Some(UserInput::Play(channel.wait_for_cards()));
                 }
                 Status::End => break,
@@ -159,6 +159,9 @@ impl FromStr for ServerInput {
                 }
                 Ok(ServerInput::End(winners))
             }
+            "?" => {
+                Ok(ServerInput::InvalidInput(tokens[1].to_string()))
+            }
             "!" => {
                 Ok(ServerInput::Error(tokens[1].to_string()))
             }
@@ -186,5 +189,90 @@ impl ToString for ServerOutput {
                 format!("P {}", cards)
             }
         }
+    }
+}
+
+use termion::{self, color, style};
+
+fn print_server_input(inp: &ServerInput) {
+    match *inp {
+        ServerInput::You(p) => {
+            println!("You are player #{}.", p);
+        }
+        ServerInput::Deal(ref cards) => {
+            print!("Your cards are ");
+            pp_cards(cards);
+            println!("");
+        }
+        ServerInput::Turn(ref turn) => {
+            print!("Player #{}'s turn ", turn.player());
+            match *turn {
+                game::Turn::Start(_) => print!("to start"),
+                game::Turn::Follow(_) => print!("to follow"),
+                game::Turn::Any(_) => print!("for control"),
+                game::Turn::End => unreachable!(),
+            }
+            println!("");
+        }
+        ServerInput::Play(p, ref cards) => {
+            print!("Player #{} ", p);
+            if cards.is_pass() {
+                print!("{}passed{}", style::Bold, style::Reset);
+            } else {
+                print!("played ");
+                pp_cards(cards);
+            }
+            println!("");
+        }
+        ServerInput::Win(p) => {
+            println!("Player #{} won.", p);
+        }
+        ServerInput::End(ref winners) => {
+            println!("Game has ended. Winners are:");
+            println!("1st: #{}", winners[0]);
+            println!("2nd: #{}", winners[1]);
+            println!("3rd: #{}", winners[2]);
+        }
+        ServerInput::InvalidInput(ref msg) => {
+            println!("{}Invalid move: {}{}",
+                     style::Bold,
+                     msg,
+                     style::Reset);
+        }
+        ServerInput::Error(ref msg) => {
+            println!("Dealer says: {}", msg);
+        }
+    }
+}
+
+fn print_your_turn() {
+    println!("{}It's your turn!{}", style::Bold, style::Reset);
+}
+
+fn pp_cards(cards: &game::Cards) {
+    let mut cards = cards.clone();
+    cards.sort();
+    print!("{}", color::Bg(color::LightWhite));
+    for card in &cards {
+        print!(" ");
+        pp_card(card);
+        print!(" ");
+    }
+    print!("{}{}", color::Fg(color::Reset), color::Bg(color::Reset));
+}
+
+fn pp_card(card: game::Card) {
+    match card.suit {
+        'C' | 'S' => print!("{}", color::Fg(color::Black)),
+        'H' | 'D' => print!("{}", color::Fg(color::Red)),
+        _ => unreachable!()
+    }
+    print!("{}", card.rank);
+    match card.suit {
+        'C' => print!("♣"),
+        'S' => print!("♠"),
+        'H' => print!("♥"),
+        'D' => print!("♦"),
+        _ => unreachable!()
     }
 }

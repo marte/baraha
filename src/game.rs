@@ -16,8 +16,8 @@ const SUITS: &'static str = "CSHD";
 #[derive(Clone)]
 #[derive(Hash)]
 pub struct Card {
-    rank: char,
-    suit: char,
+    pub rank: char,
+    pub suit: char,
 }
 
 type Value = usize;
@@ -116,6 +116,15 @@ impl FromStr for Cards {
             cards.0.push(card);
         }
         Ok(cards)
+    }
+}
+
+impl<'a> IntoIterator for &'a Cards {
+    type Item = Card;
+    type IntoIter = ::std::vec::IntoIter<Self::Item>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.clone().into_iter()
     }
 }
 
@@ -224,6 +233,10 @@ impl Cards {
 
     pub fn is_pass(&self) -> bool {
         self.0.is_empty()
+    }
+
+    pub fn sort(&mut self) {
+        self.0.sort();
     }
 }
 

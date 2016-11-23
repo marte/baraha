@@ -35,7 +35,7 @@ pub enum Output {
     Win(PlayerNum),
     End(Vec<PlayerNum>),
     Error(String),
-    PlayError(PlayerNum),
+    PlayError(PlayerNum, String),
 }
 
 
@@ -85,8 +85,8 @@ impl Dealer {
                 let tokens: Vec<_> = inp.trim().splitn(2, ' ').collect();
                 let player = game.turn().player();
                 if tokens.len() == 0 || tokens[0] != "P" {
-                    println!("Invalid input for #{}.", player);
-                    (State::Play(game.clone()), vec![Output::PlayError(player)])
+                    (State::Play(game.clone()),
+                     vec![Output::PlayError(player, "invalid input".into())])
                 } else {
                     let token = if tokens.len() == 1 { "" } else { tokens[1] };
                     match token.parse() {
@@ -112,16 +112,14 @@ impl Dealer {
                                     }
                                 }
                                 Err(e) => {
-                                    println!("Bad play of #{}: {}", player, e);
                                     (State::Play(game.clone()),
-                                     vec![Output::PlayError(player)])
+                                     vec![Output::PlayError(player, e.into())])
                                 }
                             }
                         }
                         Err(e) => {
-                            println!("Cannot parse input of #{}: {}.", player, e);
                             (State::Play(game.clone()),
-                             vec![Output::PlayError(player)])
+                             vec![Output::PlayError(player, e.into())])
                         }
                     }
                 }

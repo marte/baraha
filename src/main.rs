@@ -1,4 +1,5 @@
 extern crate rand;
+extern crate termion;
 
 use std::env;
 

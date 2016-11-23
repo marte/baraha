@@ -6,6 +6,7 @@ enum State {
     WaitForCards,
     Game,
     MyTurn,
+    MyPlay,
     End,
 }
 
@@ -22,6 +23,7 @@ impl State {
                 | State::WaitForId
                 | State::WaitForCards
                 | State::Game
+                | State::MyPlay
                 => Status::ServerInput,
             State::MyTurn => Status::UserInput,
             State::End => Status::End,
@@ -37,6 +39,7 @@ pub enum ServerInput {
     Turn(game::Turn),
     Win(game::PlayerNum),
     End(Vec<game::PlayerNum>),
+    InvalidInput(String),
     Error(String),
 }
 
@@ -120,8 +123,16 @@ impl Player {
             State::MyTurn => {
                 let input = u_inp.unwrap();
                 match input {
-                    UserInput::Play(cards) => (State::Game,
+                    UserInput::Play(cards) => (State::MyPlay,
                                                Some(ServerOutput::Play(cards)))
+                }
+            }
+            State::MyPlay => {
+                let input = s_inp.unwrap();
+                match input {
+                    ServerInput::Play(_, _) => (State::Game, None),
+                    ServerInput::InvalidInput(_) => (State::MyTurn, None),
+                    _ => panic!("unexpected input: {:?}", input)
                 }
             }
             State::End => unreachable!(),
