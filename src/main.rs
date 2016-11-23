@@ -11,13 +11,16 @@ mod utils;
 
 fn main() {
     let args: Vec<_> = env::args().collect();
-    match args.len() {
-        2 => {
-            match &*args[1] {
-                "host" => server::host(),
-                "play" => client::play(),
-                _ => panic!("invalid usage")
+    if args.len() < 2 {
+        panic!("invalid usage")
+    }
+    match &*args[1] {
+        "host" => server::host(),
+        "play" => {
+            if args.len() != 3 {
+                panic!("invalid usage")
             }
+            client::play(args[2].clone());
         }
         _ => panic!("invalid usage")
     }

@@ -24,7 +24,7 @@ use game;
 use utils;
 
 pub fn host() {
-    let listener = TcpListener::bind("127.0.0.1:2222").unwrap();
+    let listener = TcpListener::bind("0.0.0.0:2222").unwrap();
 
     println!("Waiting for 4 players.");
 

@@ -9,13 +9,13 @@ use bots::player::{self, Status, ServerInput, UserInput, ServerOutput};
 use game;
 use utils;
 
-pub fn play() {
+pub fn play(host: String) {
     let player = Arc::new(Mutex::new(player::new()));
     let channel = Channel::new();
     {
         let player = player.clone();
         let channel = channel.clone();
-        thread::spawn(move || run(player, channel));
+        thread::spawn(move || run(host, player, channel));
     }
     interact(player, channel);
 }
@@ -161,8 +161,8 @@ fn print_usage() {
     );
 }
 
-fn run(player: Arc<Mutex<player::Player>>, mut channel: Channel) {
-    let mut stream = TcpStream::connect("127.0.0.1:2222").expect("connection failed");
+fn run(host: String, player: Arc<Mutex<player::Player>>, mut channel: Channel) {
+    let mut stream = TcpStream::connect((&*host, 2222)).expect("connection failed");
     let mut status = None;
     loop {
         let (mut s_inp, mut u_inp) = (None, None);
