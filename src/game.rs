@@ -154,13 +154,17 @@ impl Cards {
             if num_set.len() == 5 {
                 let mut nums: Vec<Value> = num_set.iter().cloned().collect();
                 if nums[0]+4 == nums[4] {
-                    return Some(nums[4])
+                    // Use the value of the highest (by num) card.
+                    let card = cards.iter().find(|&c| num(*c) == nums[4]).unwrap();
+                    return Some(card.value())
                 } else if nums[0] == 0 {
-                    // let Ace be a high card
+                    // Let Ace be a high card.
                     nums[0] = 13;
                     nums.sort();
                     if nums[0]+4 == nums[4] {
-                        return Some(nums[4])
+                        // Use the value of the Ace card.
+                        let card = cards.iter().find(|&c| num(*c) == 0).unwrap();
+                        return Some(card.value())
                     }
                 }
             }
@@ -169,7 +173,9 @@ impl Cards {
 
         fn flush(cards: &[Card]) -> Option<Value> {
             if cards.iter().all(|c| c.suit == cards[0].suit) {
-                Some(SUITS.find(cards[0].suit).unwrap())
+                // order by suit then by rank
+                Some(SUITS.find(cards[4].suit).unwrap()*13
+                     + RANKS.find(cards[4].rank).unwrap())
             } else {
                 None
             }
@@ -214,11 +220,11 @@ impl Cards {
                 }
             }
             5 => {
-                let (combi, val) = if let Some(s_val) = straight(cards) {
-                    if let Some(f_val) = flush(cards) {
-                        (Combi::StraightFlush, s_val*4 + f_val)
+                let (combi, val) = if let Some(val) = straight(cards) {
+                    if let Some(_) = flush(cards) {
+                        (Combi::StraightFlush, val)
                     } else {
-                        (Combi::Straight, s_val)
+                        (Combi::Straight, val)
                     }
                 } else {
                     if let Some(val) = quadro(cards) {
@@ -400,5 +406,65 @@ impl Game {
                 break
             }
         }
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn gt(c1: Cards, c2: Cards) -> bool {
+        c1.value().unwrap() > c2.value().unwrap()
+    }
+
+    #[test]
+    fn straight_flush() {
+        // The high card in these cases are not the ace or two.
+        let c1 = "AD 2D 3D 4D 5D".parse().unwrap();
+        let c2 = "2D 3D 4D 5D 6D".parse().unwrap();
+        assert!(gt(c2, c1));
+        let c1 = "2D 3D 4D 5D 6D".parse().unwrap();
+        let c2 = "3D 4D 5D 6D 7D".parse().unwrap();
+        assert!(gt(c2, c1));
+
+        let c1 = "9D TD JD QD KD".parse().unwrap();
+        // This time the high card is the Ace.
+        let c2 = "AD KD QD JD TD".parse().unwrap();
+        assert!(gt(c2, c1));
+    }
+
+    #[test]
+    fn straight() {
+        // The high card in these cases are not the ace or two.
+        let c1 = "AC 2D 3D 4D 5D".parse().unwrap();
+        let c2 = "2C 3D 4D 5D 6D".parse().unwrap();
+        assert!(gt(c2, c1));
+        let c1 = "2C 3D 4D 5D 6D".parse().unwrap();
+        let c2 = "3C 4D 5D 6D 7D".parse().unwrap();
+        assert!(gt(c2, c1));
+
+        let c1 = "9C TD JD QD KD".parse().unwrap();
+        // This time the high card is the Ace.
+        let c2 = "AC KD QD JD TD".parse().unwrap();
+        assert!(gt(c2, c1));
+
+        // High card rank tied, break by suit.
+        let c1 = "AC KD QD JD TD".parse().unwrap();
+        let c2 = "AS KH QH JH TH".parse().unwrap();
+        assert!(gt(c2, c1));
+    }
+
+    #[test]
+    fn flush() {
+        // Suit is more important than high card.
+        let c1 = "AC 2C 3C 4C 6C".parse().unwrap();
+        let c2 = "9D KD 8D JD TD".parse().unwrap();
+        assert!(gt(c2, c1));
+
+        // If suit is tied, then high card is used as breaker.
+        let c1 = "AD KD 8D JD TD".parse().unwrap();
+        let c2 = "9D 2D 3D 4D 6D".parse().unwrap();
+        assert!(gt(c2, c1));
     }
 }
