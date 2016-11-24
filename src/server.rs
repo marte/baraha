@@ -3,6 +3,7 @@
 //! ## Server to Client
 //! * `U #{N}` - You: where N is your player number
 //! * `D [{C} ..]` - Deal: where C.. is a list of space-separated cards
+//! * `? {M}` - Invalid input: where M is message
 //!
 //! ## Server to All
 //! * `! {M}` - Error: where M is message
@@ -14,7 +15,6 @@
 //! ## Client to Server
 //! * `G` - Game: ready for game
 //! * `P [{C} ..]` - Play: play C..
-//! * `? {M}` - Invalid input: where M is message
 
 use std::io::prelude::*;
 use std::net::{TcpListener, TcpStream};
