@@ -22,6 +22,12 @@ fn main() {
             }
             client::play(args[2].clone());
         }
+        "bot" => {
+            if args.len() != 3 {
+                panic!("invalid usage")
+            }
+            client::bot(args[2].clone());
+        }
         _ => panic!("invalid usage")
     }
 }

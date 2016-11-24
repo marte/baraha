@@ -10,6 +10,16 @@ use game;
 use utils;
 
 pub fn play(host: String) {
+    let (player, channel) = run_player(host);
+    interact(player, channel);
+}
+
+pub fn bot(host: String) {
+    let (player, channel) = run_player(host);
+    greedy_bot(player, channel);
+}
+
+fn run_player(host: String) -> (Arc<Mutex<player::Player>>, Channel) {
     let player = Arc::new(Mutex::new(player::new()));
     let channel = Channel::new();
     {
@@ -17,7 +27,7 @@ pub fn play(host: String) {
         let channel = channel.clone();
         thread::spawn(move || run(host, player, channel));
     }
-    interact(player, channel);
+    (player, channel)
 }
 
 struct ChannelInfo {
@@ -47,16 +57,28 @@ impl Channel {
         assert!(info.can_play);
         info.cards = Some(cards);
         (self.0).1.notify_all();
+        while info.can_play {
+            info = (self.0).1.wait(info).unwrap();
+        }
     }
 
     fn wait_for_cards(&mut self) -> game::Cards {
         let mut info = (self.0).0.lock().unwrap();
         info.can_play = true;
+        (self.0).1.notify_all();
         while info.cards.is_none() {
             info = (self.0).1.wait(info).unwrap();
         }
         info.can_play = false;
+        (self.0).1.notify_all();
         info.cards.take().unwrap()
+    }
+
+    fn wait_to_play(&mut self) {
+        let mut info = (self.0).0.lock().unwrap();
+        while !info.can_play {
+            info = (self.0).1.wait(info).unwrap();
+        }
     }
 }
 
@@ -159,6 +181,18 @@ fn print_usage() {
              bold = style::Bold,
              reset = style::Reset,
     );
+}
+
+fn greedy_bot(player: Arc<Mutex<player::Player>>, mut channel: Channel) {
+    loop {
+        channel.wait_to_play();
+        let hints = player.lock().unwrap().hints();
+        if hints.is_empty() {
+            channel.play_cards("".parse().unwrap());
+        } else {
+            channel.play_cards(hints[0].clone());
+        }
+    }
 }
 
 fn run(host: String, player: Arc<Mutex<player::Player>>, mut channel: Channel) {

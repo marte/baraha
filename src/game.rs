@@ -4,6 +4,7 @@ use std::collections::{HashSet, BTreeSet};
 use std::str::FromStr;
 use std::iter::FromIterator;
 use std::ops::Index;
+use std::cell::Cell;
 
 use rand::{self, Rng};
 
@@ -92,9 +93,12 @@ fn new_deck() -> Vec<Card> {
     d
 }
 
+// TODO: Better if usage of this is limited to a playable set of cards
+// instead of just a list of cards because they have different use
+// cases.
 #[derive(Debug)]
 #[derive(Clone)]
-pub struct Cards(Vec<Card>);
+pub struct Cards(Vec<Card>, Cell<Option<Result<Value, &'static str>>>);
 
 impl fmt::Display for Cards {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -108,7 +112,7 @@ impl fmt::Display for Cards {
 impl FromStr for Cards {
     type Err = &'static str;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let mut cards = Cards(vec![]);
+        let mut cards = Cards(vec![], Cell::new(None));
         for c in s.split_whitespace() {
             let card = try!{Card::from_str(c)};
             if cards.0.contains(&card) {
@@ -135,12 +139,16 @@ impl FromIterator<Card> for Cards {
         for c in iter {
             cards.push(c);
         }
-        Cards(cards)
+        Cards(cards, Cell::new(None))
     }
 }
 
 impl Cards {
     pub fn value(&self) -> Result<Value, &'static str> {
+        // Check the cache.
+        if let Some(res) = self.1.get() {
+            return res
+        }
         fn is_same_rank(cards: &[Card]) -> bool {
             cards[0].rank == cards[cards.len()-1].rank
         }
@@ -202,7 +210,7 @@ impl Cards {
         let cards: &mut [Card] = &mut self.0.clone();
         cards.sort();
 
-        match cards.len() {
+        let res = match cards.len() {
             0 => Ok(0),
             1 => Ok(cards[0].value()),
             2 => {
@@ -245,7 +253,9 @@ impl Cards {
             _ => {
                 Err("invalid length")
             }
-        }
+        };
+        self.1.set(Some(res));
+        res
     }
 
     pub fn is_pass(&self) -> bool {
@@ -260,6 +270,32 @@ impl Cards {
         self.0.len()
     }
 }
+
+impl Ord for Cards {
+    fn cmp(&self, other: &Cards) -> Ordering {
+        let (len1, len2) = (self.len(), other.len());
+        if len1 == len2 {
+            self.value().cmp(&other.value())
+        } else {
+            len2.cmp(&len1)
+        }
+    }
+}
+
+impl PartialOrd for Cards {
+    fn partial_cmp(&self, other: &Cards) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl PartialEq for Cards {
+    fn eq(&self, other: &Cards) -> bool {
+        self.value().unwrap() == other.value().unwrap()
+    }
+}
+impl Eq for Cards {}
+
+
 
 impl Index<usize> for Cards {
     type Output = Card;
@@ -336,7 +372,7 @@ impl Game {
     }
 
     pub fn hand(&self, p: PlayerNum) -> Cards {
-        Cards(self.hands[p-1].iter().map(|x| *x).collect())
+        Cards(self.hands[p-1].iter().map(|x| *x).collect(), Cell::new(None))
     }
 
     pub fn play(&mut self, cards: &Cards) -> Result<bool, &'static str> {
