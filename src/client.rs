@@ -74,7 +74,7 @@ impl Channel {
         info.cards.take().unwrap()
     }
 
-    fn wait_to_play(&mut self) {
+    fn wait_to_play(&self) {
         let mut info = (self.0).0.lock().unwrap();
         while !info.can_play {
             info = (self.0).1.wait(info).unwrap();
@@ -136,11 +136,11 @@ fn interact(player: Arc<Mutex<player::Player>>, mut channel: Channel) {
             "hand" => {
                 let player = player.lock().unwrap();
                 let hand = player.hand();
-                if hand.is_pass() {
+                if hand.is_empty() {
                     println!("You are done!");
                 } else {
                     print!("You have ");
-                    pp_cards(hand);
+                    pp_cards(hand.iter().cloned());
                     println!("");
                 }
             }
@@ -240,7 +240,11 @@ impl FromStr for ServerInput {
                 Ok(ServerInput::You(try!(parse_player_num(tokens[1]))))
             }
             "D" => {
-                Ok(ServerInput::Deal(try!(tokens[1].parse())))
+                let mut hand = vec![];
+                for s in tokens[1].split_whitespace() {
+                    hand.push(s.parse()?);
+                }
+                Ok(ServerInput::Deal(hand))
             }
             "P" => {
                 let args: Vec<_> = tokens[1].splitn(2, ' ').collect();
@@ -319,7 +323,7 @@ fn print_server_input(inp: &ServerInput) {
         }
         ServerInput::Deal(ref cards) => {
             print!("Your cards are ");
-            pp_cards(cards);
+            pp_cards(cards.iter().cloned());
             println!("");
         }
         ServerInput::Turn(turn) => {
@@ -367,11 +371,9 @@ fn print_your_turn() {
     println!("{}It's your turn!{}", style::Bold, style::Reset);
 }
 
-fn pp_cards(cards: &game::Cards) {
-    let mut cards = cards.clone();
-    cards.sort();
+fn pp_cards<T: IntoIterator<Item=game::Card>>(cards: T) {
     print!("{}", color::Bg(color::LightWhite));
-    for card in &cards {
+    for card in cards {
         print!(" ");
         pp_card(card);
         print!(" ");

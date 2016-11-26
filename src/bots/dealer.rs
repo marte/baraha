@@ -29,7 +29,7 @@ impl State {
 
 pub enum Output {
     You(PlayerNum),
-    Deal(PlayerNum, game::Cards),
+    Deal(PlayerNum, Vec<game::Card>),
     Turn(game::Turn),
     Play(PlayerNum, game::Cards),
     Win(PlayerNum),

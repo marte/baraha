@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::BTreeSet;
 
 use game;
 
@@ -36,7 +36,7 @@ impl State {
 #[derive(Debug)]
 pub enum ServerInput {
     You(game::PlayerNum),
-    Deal(game::Cards),
+    Deal(Vec<game::Card>),
     Play(game::PlayerNum, game::Cards),
     Turn(game::Turn),
     Win(game::PlayerNum),
@@ -57,7 +57,7 @@ pub enum ServerOutput {
 pub struct Player {
     state: State,
     num: game::PlayerNum,
-    hand: game::Cards,
+    hand: Vec<game::Card>,
     turn: Option<game::Turn>,
     last_play: Option<(game::PlayerNum, game::Cards)>,
     played: Option<game::Cards>,
@@ -67,7 +67,7 @@ pub fn new() -> Player {
     Player {
         state: State::Start,
         num: 0,
-        hand: "".parse().unwrap(),
+        hand: vec![],
         turn: None,
         last_play: None,
         played: None,
@@ -94,7 +94,8 @@ impl Player {
             }
             State::WaitForCards => {
                 let input = s_inp.unwrap();
-                if let ServerInput::Deal(cards) = input {
+                if let ServerInput::Deal(mut cards) = input {
+                    cards.sort();
                     self.hand = cards;
                     (State::Game, None)
                 } else {
@@ -142,8 +143,8 @@ impl Player {
                 match input {
                     ServerInput::Play(p, cards) => {
                         self.last_play = Some((p, cards));
-                        let mut curr_cards: HashSet<_> =
-                            self.hand.into_iter().collect();
+                        let mut curr_cards: BTreeSet<game::Card> =
+                            (&self.hand).iter().cloned().collect();
                         for card in &self.played.take().unwrap() {
                             curr_cards.remove(&card);
                         }
@@ -164,7 +165,7 @@ impl Player {
         &self.last_play
     }
 
-    pub fn hand(&self) -> &game::Cards {
+    pub fn hand(&self) -> &Vec<game::Card> {
         &self.hand
     }
 
@@ -189,10 +190,6 @@ impl Player {
             }
             game::Turn::End => unreachable!(),
         }
-        let mut compare_value = None;
-        if let Some(ref cards) = compare {
-            compare_value = Some(cards.value().unwrap());
-        }
         let mut hints = vec![];
         for mask in 1u32..(1<<self.hand.len()) {
             if let Some(ref cards) = compare {
@@ -210,14 +207,13 @@ impl Player {
             if start && !cards.contains(&game::LOWEST_CARD) {
                 continue
             }
-            let card: game::Cards = cards.into_iter().collect();
-            if let Ok(val) = card.value() {
-                if let Some(val2) = compare_value {
-                    if val > val2 {
-                        hints.push(card);
+            if let Ok(hint) = game::Cards::new(cards) {
+                if let Some(compare) = compare {
+                    if hint > *compare {
+                        hints.push(hint);
                     }
                 } else {
-                    hints.push(card);
+                    hints.push(hint);
                 }
             }
         }

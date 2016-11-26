@@ -73,7 +73,8 @@ fn stream_outputs(out: Output) -> Vec<(game::PlayerNum, String)> {
             out_to_all(format!("! #{}", msg))
         }
         Output::Deal(p, ref cards) => {
-            vec![(p, format!("D {}", cards))]
+            let str_cards: Vec<_> = cards.iter().map(|c| c.to_string()).collect();
+            vec![(p, format!("D {}", str_cards.join(" ")))]
         }
         Output::Turn(ref t) => {
             out_to_all(format!("T #{} {}", t.player(), match *t {

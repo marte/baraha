@@ -4,19 +4,13 @@ use std::collections::{HashSet, BTreeSet};
 use std::str::FromStr;
 use std::iter::FromIterator;
 use std::ops::Index;
-use std::cell::Cell;
 
 use rand::{self, Rng};
 
 const RANKS: &'static str = "3456789TJQKA2";
 const SUITS: &'static str = "CSHD";
 
-#[derive(Debug)]
-#[derive(Eq)]
-#[derive(PartialEq)]
-#[derive(Copy)]
-#[derive(Clone)]
-#[derive(Hash)]
+#[derive(Debug, Eq, PartialEq, Copy, Clone, Hash)]
 pub struct Card {
     pub rank: char,
     pub suit: char,
@@ -93,12 +87,8 @@ fn new_deck() -> Vec<Card> {
     d
 }
 
-// TODO: Better if usage of this is limited to a playable set of cards
-// instead of just a list of cards because they have different use
-// cases.
-#[derive(Debug)]
-#[derive(Clone)]
-pub struct Cards(Vec<Card>, Cell<Option<Result<Value, &'static str>>>);
+#[derive(Debug, Clone)]
+pub struct Cards(Vec<Card>, Value);
 
 impl fmt::Display for Cards {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -112,15 +102,16 @@ impl fmt::Display for Cards {
 impl FromStr for Cards {
     type Err = &'static str;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let mut cards = Cards(vec![], Cell::new(None));
+        let mut cards = vec![];
         for c in s.split_whitespace() {
-            let card = try!{Card::from_str(c)};
-            if cards.0.contains(&card) {
+            let card = Card::from_str(c)?;
+            if cards.contains(&card) {
                 return Err("cards are not unique")
             }
-            cards.0.push(card);
+            cards.push(card);
         }
-        Ok(cards)
+        let val = Cards::value(cards.clone())?;
+        Ok(Cards(cards, val))
     }
 }
 
@@ -133,22 +124,24 @@ impl<'a> IntoIterator for &'a Cards {
     }
 }
 
-impl FromIterator<Card> for Cards {
-    fn from_iter<I: IntoIterator<Item=Card>>(iter: I) -> Self {
-        let mut cards = vec![];
-        for c in iter {
-            cards.push(c);
-        }
-        Cards(cards, Cell::new(None))
-    }
-}
-
 impl Cards {
-    pub fn value(&self) -> Result<Value, &'static str> {
-        // Check the cache.
-        if let Some(res) = self.1.get() {
-            return res
-        }
+    pub fn new(cards: Vec<Card>) -> Result<Cards, String> {
+        let val = Cards::value(cards.clone())?;
+        Ok(Cards(cards, val))
+    }
+
+    pub fn is_pass(&self) -> bool {
+        self.0.is_empty()
+    }
+
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    fn value(mut cards: Vec<Card>) -> Result<Value, &'static str> {
+        cards.sort();
+        let cards = cards.as_slice();
+
         fn is_same_rank(cards: &[Card]) -> bool {
             cards[0].rank == cards[cards.len()-1].rank
         }
@@ -207,9 +200,6 @@ impl Cards {
             }
         }
 
-        let cards: &mut [Card] = &mut self.0.clone();
-        cards.sort();
-
         let res = match cards.len() {
             0 => Ok(0),
             1 => Ok(cards[0].value()),
@@ -254,20 +244,7 @@ impl Cards {
                 Err("invalid length")
             }
         };
-        self.1.set(Some(res));
         res
-    }
-
-    pub fn is_pass(&self) -> bool {
-        self.0.is_empty()
-    }
-
-    pub fn sort(&mut self) {
-        self.0.sort();
-    }
-
-    pub fn len(&self) -> usize {
-        self.0.len()
     }
 }
 
@@ -275,8 +252,11 @@ impl Ord for Cards {
     fn cmp(&self, other: &Cards) -> Ordering {
         let (len1, len2) = (self.len(), other.len());
         if len1 == len2 {
-            self.value().cmp(&other.value())
+            self.1.cmp(&other.1)
         } else {
+            // Comparing cards with different cardinalities doesn't
+            // really make sense, we just do it here for convenience
+            // (e.g. in sorting).
             len2.cmp(&len1)
         }
     }
@@ -290,12 +270,10 @@ impl PartialOrd for Cards {
 
 impl PartialEq for Cards {
     fn eq(&self, other: &Cards) -> bool {
-        self.value().unwrap() == other.value().unwrap()
+        self.1 == other.1
     }
 }
 impl Eq for Cards {}
-
-
 
 impl Index<usize> for Cards {
     type Output = Card;
@@ -306,11 +284,7 @@ impl Index<usize> for Cards {
 
 pub type PlayerNum = usize;
 
-type Hand = HashSet<Card>;
-
-#[derive(Debug)]
-#[derive(Copy)]
-#[derive(Clone)]
+#[derive(Debug, Copy, Clone)]
 pub enum Turn {
     Start(PlayerNum),
     Follow(PlayerNum),
@@ -329,8 +303,8 @@ impl Turn {
 
 pub struct Game {
     curr_player: PlayerNum,
-    hands: Vec<Hand>,
-    discard_pile: HashSet<Card>,
+    hands: Vec<HashSet<Card>>,
+    discard_pile: Vec<Card>,
     last_play: Option<(PlayerNum, Cards)>,
     winners: Vec<PlayerNum>,
 }
@@ -340,13 +314,13 @@ impl Game {
         let mut game = Game {
             curr_player: 0,
             hands: vec![],
-            discard_pile: HashSet::new(),
+            discard_pile: vec![],
             last_play: None,
             winners: vec![],
         };
         let mut deck = new_deck();
         for p in 1..5 {
-            let hand: Hand = deck.drain(..13).collect();
+            let hand: HashSet<_> = deck.drain(..13).collect();
             if hand.contains(&LOWEST_CARD) {
                 assert_eq!(0, game.curr_player);
                 game.curr_player = p;
@@ -371,8 +345,8 @@ impl Game {
         }
     }
 
-    pub fn hand(&self, p: PlayerNum) -> Cards {
-        Cards(self.hands[p-1].iter().map(|x| *x).collect(), Cell::new(None))
+    pub fn hand(&self, p: PlayerNum) -> Vec<Card> {
+        self.hands[p-1].iter().cloned().collect()
     }
 
     pub fn play(&mut self, cards: &Cards) -> Result<bool, &'static str> {
@@ -380,7 +354,6 @@ impl Game {
         if !self.is_in_hand(t.player(), cards) {
             return Err("some cards are not in player's hands")
         }
-        let val = try!{cards.value()};
         match t {
             Turn::Start(_) => {
                 if cards.is_pass() {
@@ -395,8 +368,7 @@ impl Game {
                     if last_cards.0.len() != cards.0.len() {
                         return Err("should follow the cardinality of last play")
                     }
-                    let last_val = last_cards.value().unwrap();
-                    if val <= last_val {
+                    if cards <= last_cards {
                         return Err("played cards are lower than last")
                     }
                 }
@@ -410,7 +382,7 @@ impl Game {
         }
         for card in &cards.0 {
             self.hands[t.player()-1].remove(card);
-            self.discard_pile.insert(*card);
+            self.discard_pile.push(*card);
         }
         if !cards.is_pass() {
             self.last_play = Some((t.player(), cards.clone()));
@@ -451,7 +423,7 @@ mod tests {
     use super::*;
 
     fn gt(c1: Cards, c2: Cards) -> bool {
-        c1.value().unwrap() > c2.value().unwrap()
+        c1 > c2
     }
 
     #[test]
