@@ -237,7 +237,7 @@ impl FromStr for ServerInput {
         }
         match tokens[0] {
             "U" => {
-                Ok(ServerInput::You(try!(parse_player_num(tokens[1]))))
+                Ok(ServerInput::You(parse_player_num(tokens[1])?))
             }
             "D" => {
                 let mut hand = vec![];
@@ -249,9 +249,9 @@ impl FromStr for ServerInput {
             "P" => {
                 let args: Vec<_> = tokens[1].splitn(2, ' ').collect();
                 if args.len() <= 2 {
-                    let p = try!(parse_player_num(args[0]));
+                    let p = parse_player_num(args[0])?;
                     let cards_str = if args.len() == 2 { args[1] } else { "" };
-                    let cards = try!(cards_str.parse());
+                    let cards = cards_str.parse()?;
                     return Ok(ServerInput::Play(p, cards))
                 }
                 Err("invalid args for P")
@@ -259,7 +259,7 @@ impl FromStr for ServerInput {
             "T" => {
                 let args: Vec<_> = tokens[1].split_whitespace().collect();
                 if args.len() == 2 {
-                    let p = try!(parse_player_num(args[0]));
+                    let p = parse_player_num(args[0])?;
                     let turn = match args[1] {
                         "S" => game::Turn::Start(p),
                         "F" => game::Turn::Follow(p),
@@ -271,13 +271,13 @@ impl FromStr for ServerInput {
                 Err("invalid args for T")
             }
             "W" => {
-                Ok(ServerInput::Win(try!(parse_player_num(tokens[1]))))
+                Ok(ServerInput::Win(parse_player_num(tokens[1])?))
             }
             "E" => {
                 let args: Vec<_> = tokens[1].split_whitespace().collect();
                 let mut winners = vec![];
                 for arg in args {
-                    winners.push(try!(parse_player_num(arg)));
+                    winners.push(parse_player_num(arg)?);
                 }
                 Ok(ServerInput::End(winners))
             }
