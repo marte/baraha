@@ -33,6 +33,7 @@ fn run_player(host: String) -> (Arc<Mutex<player::Player>>, Channel) {
 struct ChannelInfo {
     can_play: bool,
     cards: Option<game::Cards>,
+    has_ended: bool,
 }
 
 #[derive(Clone)]
@@ -44,6 +45,7 @@ impl Channel {
         let info = ChannelInfo {
             can_play: false,
             cards: None,
+            has_ended: false,
         };
         Channel(Arc::new((Mutex::new(info), Condvar::new())))
     }
@@ -74,11 +76,18 @@ impl Channel {
         info.cards.take().unwrap()
     }
 
-    fn wait_to_play(&self) {
+    fn wait_to_play(&self) -> bool {
         let mut info = (self.0).0.lock().unwrap();
-        while !info.can_play {
+        while !info.can_play && !info.has_ended {
             info = (self.0).1.wait(info).unwrap();
         }
+        info.can_play
+    }
+
+    fn has_ended(&mut self) {
+        let mut info = (self.0).0.lock().unwrap();
+        info.has_ended = true;
+        (self.0).1.notify_all();
     }
 }
 
@@ -185,7 +194,9 @@ fn print_usage() {
 
 fn greedy_bot(player: Arc<Mutex<player::Player>>, mut channel: Channel) {
     loop {
-        channel.wait_to_play();
+        if !channel.wait_to_play() {
+            break
+        }
         let hints = player.lock().unwrap().hints();
         if hints.is_empty() {
             channel.play_cards("".parse().unwrap());
@@ -226,6 +237,7 @@ fn run(host: String, player: Arc<Mutex<player::Player>>, mut channel: Channel) {
             stream.write((output.to_string() + "\r\n").as_bytes()).expect("write error");
         }
     }
+    channel.has_ended();
 }
 
 impl FromStr for ServerInput {

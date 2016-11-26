@@ -1,13 +1,8 @@
-extern crate rand;
-extern crate termion;
+extern crate baraha;
 
 use std::env;
 
-mod client;
-mod server;
-mod game;
-mod bots;
-mod utils;
+use baraha::{server, client};
 
 fn main() {
     let args: Vec<_> = env::args().collect();
