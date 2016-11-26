@@ -229,11 +229,11 @@ fn run(host: String, player: Arc<Mutex<player::Player>>, mut channel: Channel) {
 }
 
 impl FromStr for ServerInput {
-    type Err = &'static str;
+    type Err = String;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let tokens: Vec<_> = s.splitn(2, ' ').collect();
         if tokens.len() != 2 {
-            return Err("no args")
+            return Err("no args".into())
         }
         match tokens[0] {
             "U" => {
@@ -254,7 +254,7 @@ impl FromStr for ServerInput {
                     let cards = cards_str.parse()?;
                     return Ok(ServerInput::Play(p, cards))
                 }
-                Err("invalid args for P")
+                Err("invalid args for P".into())
             }
             "T" => {
                 let args: Vec<_> = tokens[1].split_whitespace().collect();
@@ -264,11 +264,11 @@ impl FromStr for ServerInput {
                         "S" => game::Turn::Start(p),
                         "F" => game::Turn::Follow(p),
                         "A" => game::Turn::Any(p),
-                        _ => return Err("invalid turn type")
+                        _ => return Err(format!("invalid turn type {}", args[1]))
                     };
                     return Ok(ServerInput::Turn(turn))
                 }
-                Err("invalid args for T")
+                Err("invalid args for T".into())
             }
             "W" => {
                 Ok(ServerInput::Win(parse_player_num(tokens[1])?))
@@ -287,12 +287,12 @@ impl FromStr for ServerInput {
             "!" => {
                 Ok(ServerInput::Error(tokens[1].to_string()))
             }
-            _ => Err("invalid input")
+            _ => Err("invalid input".into())
         }
     }
 }
 
-fn parse_player_num(s: &str) -> Result<game::PlayerNum, &'static str> {
+fn parse_player_num(s: &str) -> Result<game::PlayerNum, String> {
     let bytes = s.as_bytes();
     if bytes.len() == 2 && bytes[0] == ('#' as u8) {
         let num = bytes[1] - ('0' as u8);
@@ -300,7 +300,7 @@ fn parse_player_num(s: &str) -> Result<game::PlayerNum, &'static str> {
             return Ok(num.into())
         }
     }
-    Err("invalid player number")
+    Err("invalid player number".into())
 }
 
 impl ToString for ServerOutput {

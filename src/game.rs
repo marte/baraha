@@ -43,10 +43,10 @@ impl fmt::Display for Card {
 }
 
 impl FromStr for Card {
-    type Err = &'static str;
+    type Err = String;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         if s.len() != 2 {
-            Err("must be of length 2")
+            Err("must be of length 2".into())
         } else {
             let mut chars = s.chars();
             let card = Card{
@@ -54,9 +54,9 @@ impl FromStr for Card {
                 suit: chars.next().unwrap(),
             };
             if RANKS.find(card.rank).is_none() {
-                Err("invalid rank")
+                Err(format!("invalid rank {}", card.rank))
             } else if SUITS.find(card.suit).is_none() {
-                Err("invalid suit")
+                Err(format!("invalid suit {}", card.suit))
             } else {
                 Ok(card)
             }
@@ -100,13 +100,13 @@ impl fmt::Display for Cards {
 }
 
 impl FromStr for Cards {
-    type Err = &'static str;
+    type Err = String;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let mut cards = vec![];
         for c in s.split_whitespace() {
             let card = Card::from_str(c)?;
             if cards.contains(&card) {
-                return Err("cards are not unique")
+                return Err("cards are not unique".into())
             }
             cards.push(card);
         }
@@ -138,7 +138,7 @@ impl Cards {
         self.0.len()
     }
 
-    fn value(mut cards: Vec<Card>) -> Result<Value, &'static str> {
+    fn value(mut cards: Vec<Card>) -> Result<Value, String> {
         cards.sort();
         let cards = cards.as_slice();
 
@@ -207,14 +207,14 @@ impl Cards {
                 if is_same_rank(cards) {
                     Ok(cards[1].value())
                 } else {
-                    Err("pair doesn't match")
+                    Err("pair doesn't match".into())
                 }
             }
             3 => {
                 if is_same_rank(cards) {
                     Ok(cards[0].value())
                 } else {
-                    Err("trio doesn't match")
+                    Err("trio doesn't match".into())
                 }
             }
             5 => {
@@ -236,12 +236,12 @@ impl Cards {
                     }
                 };
                 match combi {
-                    Combi::None => Err("invalid 5-card combination"),
+                    Combi::None => Err("invalid 5-card combination".into()),
                     _ => Ok((combi as Value)*1000 + val)
                 }
             }
             _ => {
-                Err("invalid length")
+                Err("invalid length".into())
             }
         };
         res
@@ -349,33 +349,34 @@ impl Game {
         self.hands[p-1].iter().cloned().collect()
     }
 
-    pub fn play(&mut self, cards: &Cards) -> Result<bool, &'static str> {
+    pub fn play(&mut self, cards: &Cards) -> Result<bool, String> {
         let t = self.turn();
         if !self.is_in_hand(t.player(), cards) {
-            return Err("some cards are not in player's hands")
+            return Err("some cards are not in player's hands".into())
         }
         match t {
             Turn::Start(_) => {
                 if cards.is_pass() {
-                    return Err("cannot pass")
+                    return Err("cannot pass".into())
                 } else if !cards.0.contains(&LOWEST_CARD) {
-                    return Err("first play must include three of clubs")
+                    return Err("first play must include three of clubs".into())
                 }
             }
             Turn::Follow(_) => {
                 if !cards.is_pass() {
                     let last_cards = &self.last_play.as_ref().unwrap().1;
                     if last_cards.0.len() != cards.0.len() {
-                        return Err("should follow the cardinality of last play")
+                        return Err("should follow the number of cards \
+                                    of last play".into())
                     }
                     if cards <= last_cards {
-                        return Err("played cards are lower than last")
+                        return Err("played cards are lower than last".into())
                     }
                 }
             }
             Turn::Any(_) => {
                 if cards.is_pass() {
-                    return Err("cannot pass")
+                    return Err("cannot pass".into())
                 }
             }
             Turn::End => unreachable!(),
